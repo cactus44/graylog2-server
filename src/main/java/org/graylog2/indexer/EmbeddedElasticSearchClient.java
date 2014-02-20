@@ -257,10 +257,13 @@ public class EmbeddedElasticSearchClient {
         final BulkRequestBuilder recentIndex = client.prepareBulk();
         for (LogMessage msg : messages) {
             String source = JSONValue.toJSONString(msg.toElasticSearchObject());
+            // Set routing ?
+            String routing = getRouting(msg);
+
 
             // we manually set the document ID to the same value to be able to match up documents later.
-            mainIndex.add(buildIndexRequest(Deflector.DEFLECTOR_NAME, source, msg.getId(), 0)); // Main index.
-            recentIndex.add(buildIndexRequest(RECENT_INDEX_NAME, source, msg.getId(), server.getConfiguration().getRecentIndexTtlMinutes())); // Recent index.
+            mainIndex.add(buildIndexRequest(Deflector.DEFLECTOR_NAME, source, msg.getId(), 0, routing)); // Main index.
+            recentIndex.add(buildIndexRequest(RECENT_INDEX_NAME, source, msg.getId(), server.getConfiguration().getRecentIndexTtlMinutes(), routing)); // Recent index.
         }
 
         mainIndex.setConsistencyLevel(WriteConsistencyLevel.ONE);
@@ -338,6 +341,11 @@ public class EmbeddedElasticSearchClient {
     private IndexRequestBuilder buildIndexRequest(String index, String source, String id, int ttlMinutes) {
         final IndexRequestBuilder b = new IndexRequestBuilder(client);
         
+       // Set routing ?
+        if ((routing != null) && (!"".equals(routing))) {
+            b.setRouting(routing);
+        }
+
         /*
          * ID is set manually to allow inserting message into recent and total index
          * with same ID. (Required for linking in frontend)
@@ -356,6 +364,25 @@ public class EmbeddedElasticSearchClient {
         }
         
         return b;
+    }
+ 
+    	// Set routing ?
+    private String getRouting(LogMessage msg) {
+            if (msg == null) return "";
+      if (msg.getStreams().size() <= 0) return "";
+      
+      for (Stream stream : msg.getStreams()) {
+            ObjectId id = stream.getId();
+            if (id == null) continue;
+            
+            String str = id.toString();
+            if (str == null) continue;
+        if ("".equals(str)) continue;
+        
+        return str;
+      }
+            
+            return "";
     }
 
 }
